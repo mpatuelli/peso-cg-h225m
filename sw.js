@@ -1,5 +1,5 @@
 /* Service worker — cache tudo e serve offline (EFB / celular). */
-var CACHE = "pesocg-h225m-v6";
+var CACHE = "pesocg-h225m-v7";
 var ASSETS = [
   "./",
   "./index.html",
