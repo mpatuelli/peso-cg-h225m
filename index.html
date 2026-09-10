@@ -103,6 +103,8 @@
   .crewrow label{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13.5px;font-weight:600}
   .crewrow input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
   .hint{color:var(--muted);font-size:12px;padding:2px 13px 10px}
+  .subhead{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:var(--card2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 13px;margin-top:2px}
+  @media (prefers-color-scheme:dark){.subhead{color:var(--gold)}}
 
   .acts{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:4px}
   .act{-webkit-appearance:none;appearance:none;border:1.5px solid var(--line);background:var(--card);color:var(--txt);border-radius:11px;height:44px;padding:0 15px;font-size:13.5px;font-weight:700;cursor:pointer;touch-action:manipulation}
@@ -269,9 +271,52 @@ var BANCO_HINT="0–2 por seção · 85 / 95 / 120 kg";
 function acessoriosExtra(){return[
   T("a_escvip","Escada VIP",0,9),
   T("a_estvip","Estofado VIP",0,19),
-  T("a_bolsa","Bolsa de selva",0,20),
-  FREE("a_extra","Material adicional")
+  T("a_bolsa","Bolsa de selva",0,20)
 ];}
+
+/* Banco de dados de material (planilha "Peso do material da ANV"). Peso em kg, sem braço de CG. */
+var MAT_EXTRA=[
+  {n:"Vareta de aterramento",kg:2},
+  {n:"Rede de carga",kg:48},
+  {n:"Estropo aranha",kg:44},
+  {n:"Estropo singelo (novo)",kg:12},
+  {n:"Estropo singelo (cinta plana)",kg:26},
+  {n:"Barraca iglu",kg:3.25},
+  {n:"Isolante térmico",kg:0.85},
+  {n:"Marmita",kg:0.45},
+  {n:"Cantil com caneca",kg:0.3},
+  {n:"Saco de dormir",kg:1.4},
+  {n:"Rádio MR509/10",kg:1.25},
+  {n:"Balsa MK-7",kg:47.5},
+  {n:"Cadeira de praia",kg:2},
+  {n:"Manilha",kg:3.5},
+  {n:"Bolsa de mensagem de treinamento",kg:4},
+  {n:"Bolsa de mensagem com zíper",kg:4.5},
+  {n:"Prisoc",kg:2},
+  {n:"Hi line (47 m)",kg:6},
+  {n:"Sling",kg:1},
+  {n:"Drip tube pequeno",kg:8},
+  {n:"Drip tube grande",kg:19},
+  {n:"Proteção do rapel",kg:8.5},
+  {n:"Fumígeno",kg:5},
+  {n:"Colete MK15",kg:4},
+  {n:"Balsa LR1",kg:4.5},
+  {n:"Colete VIP (LPU-32)",kg:1},
+  {n:"Abafadores",kg:0.3},
+  {n:"Maca GSAR",kg:18},
+  {n:"Cesto de resgate",kg:17},
+  {n:"Barra de reboque",kg:23},
+  {n:"Haste Kit Poly",kg:9},
+  {n:"Lente do farol de busca",kg:3},
+  {n:"Kit Limalha",kg:6},
+  {n:"Kit blue point",kg:8.5},
+  {n:"Caixa de sobressalentes",kg:52},
+  {n:"Caixa ferramenta VN",kg:13.5},
+  {n:"Computador especialista",kg:4.5},
+  {n:"Torquímetro grande",kg:4.5},
+  {n:"Caixa ferramenta MV/SV",kg:48.5},
+  {n:"Computador m'arms",kg:5}
+];
 function flutuadores(){return[
   NEG("c_flv","Remover flutuador de vante",0,39),
   NEG("c_fllh","Remover flutuador LH",0,43.8),
@@ -307,7 +352,7 @@ var CATALOGS={
         SEL("t_mec","Mecânico de voo",1.924,CREW_SEL,0),
         PAX("t_fiel","Fiel",4.70,6,CREW_CATS)
       ]},
-      {name:"Acessórios",items:[
+      {name:"Acessórios",extra:true,items:[
         T("a_cambu","Camburão de lavagem",7.49,32),
         T("a_caixa","Caixa de ferramentas Fiel",8.55,38),
         T("a_kit","Kit de bordo",8.55,13),
@@ -357,7 +402,7 @@ var CATALOGS={
         PAX("t_fiel","Fiel",4.70,6,CREW_CATS),
         PAX("t_optac","Operador Tacco",6.86,2,CREW_CATS)
       ]},
-      {name:"Acessórios",items:[
+      {name:"Acessórios",extra:true,items:[
         T("a_cambu","Camburão de lavagem",3.11,32),
         T("a_caixa","Caixa de ferramentas Fiel",8.59,38),
         T("a_kit","Kit de bordo",8.59,13),
@@ -404,7 +449,7 @@ var CATALOGS={
 };
 
 /* ============ estado ============ */
-var LS="pesoCG_h225m_v4";
+var LS="pesoCG_h225m_v5";
 var ACK_KEYS=[["cmt","Comandante da ANV"],["mec","MecVoo"]];
 var state=load();
 function load(){
@@ -422,6 +467,12 @@ function migrate(s){
       var prev=old[a[0]]||(a[0]==="mec"?old.mec:null)||(a[0]==="cmt"?old.p1:null);
       c.ack[a[0]]=prev&&typeof prev==="object"?{tri:prev.tri||"",ok:!!prev.ok}:{tri:"",ok:false};
     });
+    if(!Array.isArray(c.matExtra))c.matExtra=[];
+    if(!Array.isArray(c.addItens)){
+      var a0=c.values&&c.values.a_extra;
+      c.addItens=(a0&&(a0.name||a0.kg))?[{d:a0.name||"",kg:+a0.kg||0}]:[];
+    }
+    if(c.values)delete c.values.a_extra;
   });
 }
 function blank(cfg){
@@ -434,7 +485,7 @@ function blank(cfg){
     else v[it.id]=0;
   })});
   var ack={};ACK_KEYS.forEach(function(a){ack[a[0]]={tri:"",ok:false}});
-  return {aircraft:CATALOGS[cfg].aircraft[0].id,manualW:"",manualM:"",values:v,ack:ack};
+  return {aircraft:CATALOGS[cfg].aircraft[0].id,manualW:"",manualM:"",values:v,ack:ack,matExtra:[],addItens:[]};
 }
 function save(){try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}}
 function cur(){return state.byCfg[state.config]}
@@ -477,6 +528,14 @@ function extLoadActive(){
 function limitKg(){ return (extLoadActive()||state.sling) ? 11200 : 11000; }
 function fuelCap(it){ return it.capSrc ? (cur().values[it.capSrc]||0)*it.perTank : it.cap; }
 
+function matExtraWeight(){
+  var w=0;(cur().matExtra||[]).forEach(function(x){var m=MAT_EXTRA[x.i];if(m)w+=(x.q||0)*m.kg});return w;
+}
+function addItensWeight(){
+  var w=0;(cur().addItens||[]).forEach(function(x){w+=+x.kg||0});return w;
+}
+function extraWeight(){ return matExtraWeight()+addItensWeight(); }
+
 function totals(){
   var b=basic(),W=b.w,Mo=b.m,c=cur(),pax=0,crew=0;
   cat().groups.forEach(function(g){
@@ -487,11 +546,13 @@ function totals(){
       if(g.name==="Tripulação") crew+=personCount(it,c.values[it.id]);
     });
   });
+  W+=extraWeight();
   return {W:W,M:Mo,cg:W?Mo/W:0,pax:pax,crew:crew,pob:pax+crew};
 }
 function groupTotals(g){
   var c=cur(),W=0,Mo=0,pax=0;
   g.items.forEach(function(it){var w=itemWeight(it,c.values[it.id]);W+=w;Mo+=w*it.arm;pax+=(g.name==="Banco de tropa"?personCount(it,c.values[it.id]):0)});
+  if(g.extra) W+=extraWeight();
   return {W:W,M:Mo,pax:pax};
 }
 
@@ -555,10 +616,99 @@ function buildSections(){
     card.appendChild(h);
     var rows=document.createElement("div");rows.className="rows";
     g.items.forEach(function(it){rows.appendChild(buildRow(it))});
+    if(g.extra) rows.appendChild(buildExtraBlock());
     card.appendChild(rows);host.appendChild(card);
   });
+  renderMatExtra();renderAddItens();
 }
 function mkBtn(t,sm){var b=document.createElement("button");b.type="button";b.className="b"+(sm?" sm":"");b.textContent=t;return b}
+
+/* ---- Material extra (banco de dados) + Itens adicionais (livres) ---- */
+function buildExtraBlock(){
+  var frag=document.createDocumentFragment();
+
+  var h1=document.createElement("div");h1.className="subhead";h1.textContent="Material extra";
+  frag.appendChild(h1);
+  var pick=document.createElement("div");pick.className="row";
+  var lbl=document.createElement("div");lbl.className="lbl";lbl.textContent="Adicionar da lista";
+  var ctl=document.createElement("div");ctl.className="ctl";
+  var sel=document.createElement("select");sel.id="matExtraSel";
+  var o0=document.createElement("option");o0.value="";o0.textContent="— selecionar —";sel.appendChild(o0);
+  MAT_EXTRA.forEach(function(m,i){var o=document.createElement("option");o.value=i;o.textContent=m.n+" — "+nf(m.kg,(m.kg%1?2:0))+" kg";sel.appendChild(o)});
+  var add=mkBtn("+");add.classList.add("sm");
+  add.onclick=function(){
+    var i=sel.value; if(i==="")return; i=+i;
+    var lst=cur().matExtra, ex=lst.filter(function(x){return x.i===i})[0];
+    if(ex)ex.q++; else lst.push({i:i,q:1});
+    sel.value=""; renderMatExtra(); recompute();
+  };
+  ctl.appendChild(sel);ctl.appendChild(add);
+  pick.appendChild(lbl);pick.appendChild(ctl);
+  frag.appendChild(pick);
+  var mlist=document.createElement("div");mlist.id="matExtraList";frag.appendChild(mlist);
+
+  var h2=document.createElement("div");h2.className="subhead";h2.textContent="Itens adicionais";
+  frag.appendChild(h2);
+  var alist=document.createElement("div");alist.id="addItensList";frag.appendChild(alist);
+  var addr=document.createElement("div");addr.className="row";
+  var ab=mkBtn("+ adicionar item");ab.className="act";ab.style.height="40px";
+  ab.onclick=function(){cur().addItens.push({d:"",kg:0});renderAddItens();recompute()};
+  var sp=document.createElement("div");
+  addr.appendChild(sp);addr.appendChild(ab);
+  frag.appendChild(addr);
+
+  return frag;
+}
+function renderMatExtra(){
+  var host=el("matExtraList"); if(!host)return; host.innerHTML="";
+  var lst=cur().matExtra;
+  if(!lst.length){var e=document.createElement("div");e.className="hint";e.textContent="Nenhum material extra selecionado.";host.appendChild(e);return;}
+  lst.forEach(function(x,k){
+    var m=MAT_EXTRA[x.i]; if(!m)return;
+    var w=(x.q||0)*m.kg;
+    var row=document.createElement("div");row.className="row";
+    var lbl=document.createElement("div");lbl.className="lbl";
+    lbl.innerHTML=m.n+'<span class="arm noarm">'+nf(m.kg,(m.kg%1?2:0))+' kg</span>';
+    var ctl=document.createElement("div");ctl.className="ctl";
+    var mn=mkBtn("−",true),vv=document.createElement("div"),pl=mkBtn("+",true),rm=mkBtn("×",true);
+    vv.className="val";vv.textContent=x.q;
+    mn.onclick=function(){x.q--;if(x.q<=0)lst.splice(k,1);renderMatExtra();recompute()};
+    pl.onclick=function(){x.q++;renderMatExtra();recompute()};
+    rm.onclick=function(){lst.splice(k,1);renderMatExtra();recompute()};
+    rm.style.color="var(--bad)";
+    ctl.appendChild(mn);ctl.appendChild(vv);ctl.appendChild(pl);ctl.appendChild(rm);
+    var res=document.createElement("div");res.className="res";
+    res.innerHTML='<b>'+kg(w)+'</b> · '+x.q+' × '+nf(m.kg,(m.kg%1?2:0))+' · sem momento';
+    row.appendChild(lbl);row.appendChild(ctl);row.appendChild(res);
+    host.appendChild(row);
+  });
+}
+function renderAddItens(){
+  var host=el("addItensList"); if(!host)return; host.innerHTML="";
+  var lst=cur().addItens;
+  if(!lst.length){var e=document.createElement("div");e.className="hint";e.textContent="Nenhum item adicional.";host.appendChild(e);return;}
+  lst.forEach(function(x,k){
+    var row=document.createElement("div");row.className="row";
+    var lbl=document.createElement("div");lbl.className="lbl";
+    var d=document.createElement("input");d.type="text";d.className="free";d.placeholder="descrição do item";d.value=x.d||"";
+    d.style.width="100%";
+    d.oninput=function(){x.d=d.value;save();buildPrint()};
+    lbl.appendChild(d);
+    var ctl=document.createElement("div");ctl.className="ctl";
+    var m5=mkBtn("−",true),in5=document.createElement("input"),p5=mkBtn("+",true),rm=mkBtn("×",true);
+    in5.type="number";in5.min=0;in5.step=1;in5.inputMode="decimal";in5.value=x.kg||0;in5.style.width="82px";
+    m5.onclick=function(){in5.value=Math.max(0,(+in5.value||0)-1);x.kg=+in5.value;renderAddItens();recompute()};
+    p5.onclick=function(){in5.value=(+in5.value||0)+1;x.kg=+in5.value;renderAddItens();recompute()};
+    in5.onchange=function(){in5.value=Math.max(0,+in5.value||0);x.kg=+in5.value;recompute()};
+    rm.onclick=function(){lst.splice(k,1);renderAddItens();recompute()};
+    rm.style.color="var(--bad)";
+    ctl.appendChild(m5);ctl.appendChild(in5);ctl.appendChild(p5);ctl.appendChild(rm);
+    var res=document.createElement("div");res.className="res";
+    res.innerHTML=(x.kg?('<b>'+kg(+x.kg)+'</b>'):'<span style="color:var(--muted)">— kg</span>')+' · sem momento';
+    row.appendChild(lbl);row.appendChild(ctl);row.appendChild(res);
+    host.appendChild(row);
+  });
+}
 
 function buildRow(it){
   var c=cur();
@@ -760,6 +910,19 @@ function buildPrint(t,b){
         else if(it.neg){det="removido do peso básico";}
         rows+='<tr><td>'+nm+(det?' <span class="muted">('+det+')</span>':'')+'</td><td>'+nf(w,1)+'</td><td>'+(it.arm===0?'—':nf(it.arm,3))+'</td><td>'+(it.arm===0?'0':nf(w*it.arm,1))+'</td></tr>';
       });
+    }
+    if(g.extra){
+      var me=(c.matExtra||[]).filter(function(x){return MAT_EXTRA[x.i]&&(x.q||0)>0});
+      var ai=(c.addItens||[]).filter(function(x){return (+x.kg||0)>0||(x.d||"").trim()});
+      if(me.length){
+        rows+='<tr><td colspan="4" class="muted">Material extra</td></tr>';
+        me.forEach(function(x){var m=MAT_EXTRA[x.i],w=x.q*m.kg;
+          rows+='<tr><td>'+esc(m.n)+' <span class="muted">('+x.q+' × '+nf(m.kg,(m.kg%1?2:0))+' kg)</span></td><td>'+nf(w,1)+'</td><td>—</td><td>0</td></tr>';});
+      }
+      if(ai.length){
+        rows+='<tr><td colspan="4" class="muted">Itens adicionais</td></tr>';
+        ai.forEach(function(x){rows+='<tr><td>'+((esc(x.d)||'').trim()||'(sem descrição)')+'</td><td>'+nf(+x.kg||0,1)+'</td><td>—</td><td>0</td></tr>';});
+      }
     }
     rows+='<tr class="sub"><td>Subtotal '+g.name+'</td><td>'+nf(gt.W,1)+'</td><td></td><td>'+nf(gt.M,1)+'</td></tr>';
     if(off.length) rows+='<tr><td colspan="4" class="muted">Não instalado / fora: '+off.map(esc).join(", ")+'</td></tr>';
