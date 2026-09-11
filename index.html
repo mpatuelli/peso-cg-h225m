@@ -118,6 +118,11 @@
   .kpi .k{font-size:9.5px;color:rgba(255,255,255,.62);text-transform:uppercase;letter-spacing:.05em}
   .kpi .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;color:#fff}
   .kpi .v small{font-size:11px;font-weight:600;color:rgba(255,255,255,.6)}
+  .kpi .sit{font-size:12px;font-weight:800;letter-spacing:.06em;margin-top:2px;white-space:nowrap}
+  .kpi .sit.in{color:#7ee0a6}
+  .kpi .sit.out{color:#ff8a7d}
+  .kpi .sit.in::before{content:"● "}
+  .kpi .sit.out::before{content:"▲ "}
   .kpi.cg .v{color:var(--gold)}
   .kpi.over .v{color:#ffb0a6}
   .sumbar .foot{max-width:860px;margin:0 auto;padding:1px 13px 9px;display:flex;gap:5px 12px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:rgba(255,255,255,.78)}
@@ -143,6 +148,12 @@
     #printView .sumbox{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border:1.5px solid #000;padding:7px 9px;margin-bottom:4px}
     #printView .sumbox span{display:block;font-size:8.5px;letter-spacing:.04em;color:#555;text-transform:uppercase}
     #printView .sumbox b{font-size:13px}
+    #printView .sumbox b.in{color:#1c7a49}
+    #printView .sumbox b.out{color:#c02a1c}
+    #printView .cgv{border:2px solid #000;padding:6px;text-align:center;font-weight:800;font-size:13px;letter-spacing:.06em;margin:6px 0 3px}
+    #printView .cgv.in{border-color:#1c7a49;color:#1c7a49}
+    #printView .cgv.out{border-color:#c02a1c;color:#c02a1c;background:#fde8e6}
+    #printView .crit{font-size:8.5px;color:#555;margin-bottom:8px}
     #printView table{width:100%;border-collapse:collapse;font-size:10px;margin-top:2px}
     #printView th,#printView td{border:1px solid #999;padding:2.5px 6px;text-align:right}
     #printView th:first-child,#printView td:first-child{text-align:left}
@@ -236,7 +247,7 @@
   <div class="in">
     <div class="kpi" id="kpiW"><div class="k">Peso total</div><div class="v">—</div></div>
     <div class="kpi"><div class="k">Momento</div><div class="v" id="kpiM">—</div></div>
-    <div class="kpi cg"><div class="k">Braço / CG</div><div class="v" id="kpiCG">—</div></div>
+    <div class="kpi cg"><div class="k">Braço / CG</div><div class="v" id="kpiCG">—</div><div class="sit" id="kpiSit"></div></div>
     <div class="kpi"><div class="k">POB</div><div class="v" id="kpiPob">—</div></div>
   </div>
   <div class="foot">
@@ -528,6 +539,16 @@ function extLoadActive(){
 function limitKg(){ return (extLoadActive()||state.sling) ? 11200 : 11000; }
 function fuelCap(it){ return it.capSrc ? (cur().values[it.capSrc]||0)*it.perTank : it.cap; }
 
+/* Veredito de CG — fórmula da ficha:
+   =SE(E(cg>4,39;cg<4,61);SE(PROCV(cg;G14:H36;2)>peso;"DENTRO";"FORA");SE(E(cg>4,6;cg<4,96);"DENTRO";"FORA")) */
+function fwdLimit(cg){ var a=Math.max(4.40,Math.min(4.60,cg)); return 7000+(a-4.40)*20000; }
+function cgVerdict(cg,W){
+  if(!W) return "—";
+  if(cg>4.39 && cg<4.61) return fwdLimit(cg)>W ? "DENTRO" : "FORA";
+  if(cg>4.60 && cg<4.96) return "DENTRO";
+  return "FORA";
+}
+
 function matExtraWeight(){
   var w=0;(cur().matExtra||[]).forEach(function(x){var m=MAT_EXTRA[x.i];if(m)w+=(x.q||0)*m.kg});return w;
 }
@@ -550,7 +571,8 @@ function totals(){
     });
   });
   W+=extraWeight(); Mo+=addItensMoment();
-  return {W:W,M:Mo,cg:W?Mo/W:0,pax:pax,crew:crew,pob:pax+crew};
+  var cg=W?Mo/W:0;
+  return {W:W,M:Mo,cg:cg,pax:pax,crew:crew,pob:pax+crew,verdict:cgVerdict(cg,W)};
 }
 function groupTotals(g){
   var c=cur(),W=0,Mo=0,pax=0;
@@ -560,8 +582,9 @@ function groupTotals(g){
 }
 
 /* ============ gráfico ============ */
-function chartSVG(cg,W){
+function chartSVG(cg,W,verdict){
   var xL=48,xR=688,yT=14,yB=250,aMin=4.30,aMax=5.00,wMin=6000,wMax=11500;
+  var pcol=verdict==="DENTRO"?"#1c7a49":(verdict==="FORA"?"#c02a1c":"var(--accent)");
   function X(a){return xL+(a-aMin)/(aMax-aMin)*(xR-xL)}
   function Y(w){return yB-(w-wMin)/(wMax-wMin)*(yB-yT)}
   function pts(arr){return arr.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ")}
@@ -587,9 +610,9 @@ function chartSVG(cg,W){
   s+='<text class="cx-txt" x="'+((xL+xR)/2)+'" y="'+(yB+25)+'" text-anchor="middle">braço (m)  ·  eixo vertical: peso (kg × 1000)</text>';
   if(W>0){
     var px=Math.max(xL,Math.min(xR,X(cg))), py=Math.max(yT,Math.min(yB,Y(W)));
-    s+='<line x1="'+px+'" y1="'+yT+'" x2="'+px+'" y2="'+yB+'" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 2" opacity=".6"/>';
-    s+='<circle cx="'+px+'" cy="'+py+'" r="6.5" fill="var(--accent)" stroke="#fff" stroke-width="2.5"/>';
-    s+='<text class="cx-txt" x="'+(px+10)+'" y="'+(py-8)+'" fill="var(--accent)" font-weight="700">'+cg.toFixed(3).replace(".",",")+' m / '+nf(W,0)+' kg</text>';
+    s+='<line x1="'+px+'" y1="'+yT+'" x2="'+px+'" y2="'+yB+'" stroke="'+pcol+'" stroke-width="1" stroke-dasharray="2 2" opacity=".6"/>';
+    s+='<circle cx="'+px+'" cy="'+py+'" r="6.5" fill="'+pcol+'" stroke="#fff" stroke-width="2.5"/>';
+    s+='<text class="cx-txt" x="'+(px+10)+'" y="'+(py-8)+'" fill="'+pcol+'" font-weight="700">'+cg.toFixed(3).replace(".",",")+' m / '+nf(W,0)+' kg'+(verdict==="DENTRO"||verdict==="FORA"?(" · "+verdict):"")+'</text>';
   }
   return s+'</svg>';
 }
@@ -887,6 +910,9 @@ function recompute(){
   el("kpiW").classList.toggle("over",over);
   el("kpiM").textContent=nf(t.M,0);
   el("kpiCG").innerHTML=t.W?nf(t.cg,3)+' <small>m</small>':"—";
+  var sitEl=el("kpiSit");
+  sitEl.textContent=t.W?t.verdict:"";
+  sitEl.className="sit"+(t.verdict==="DENTRO"?" in":(t.verdict==="FORA"?" out":""));
   el("kpiPob").textContent=t.pob;
   el("fPax").textContent=t.pax;
   el("fCrew").textContent=t.crew;
@@ -894,8 +920,8 @@ function recompute(){
   el("sling").checked=state.sling||extLoadActive();
   el("sling").disabled=extLoadActive();
 
-  el("chartBox").innerHTML=chartSVG(t.cg,t.W);
-  el("chartSt").textContent=t.W?(nf(t.cg,3)+" m · "+nf(t.W,0)+" kg"):"—";
+  el("chartBox").innerHTML=chartSVG(t.cg,t.W,t.verdict);
+  el("chartSt").textContent=t.W?(nf(t.cg,3)+" m · "+t.verdict):"—";
 
   buildPrint(t,b);
   save();
@@ -904,6 +930,7 @@ function recompute(){
 function buildPrint(t,b){
   if(!t){t=totals();b=basic();}
   var c=cur(), lim=limitKg(), over=t.W>lim, now=new Date();
+  var vcls=t.verdict==="DENTRO"?"in":(t.verdict==="FORA"?"out":"");
   var esc=function(x){return String(x==null?"":x).replace(/[&<>]/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[m]})};
 
   var rows="";
@@ -970,17 +997,23 @@ function buildPrint(t,b){
     '</div>'+
     '<div class="sumbox">'+
       '<div><span>Peso total</span><b>'+nf(t.W,0)+' kg</b></div>'+
-      '<div><span>Momento total</span><b>'+nf(t.M,0)+'</b></div>'+
       '<div><span>Braço / CG</span><b>'+nf(t.cg,3)+' m</b></div>'+
+      '<div><span>Situação do CG</span><b class="'+vcls+'">'+t.verdict+'</b></div>'+
       '<div><span>Limite aplicável</span><b>'+nf(lim,0)+' kg'+(extLoadActive()?' (carga ext.)':'')+'</b></div>'+
-      '<div><span>Margem</span><b>'+(over?('EXCEDE '+nf(t.W-lim,0)+' kg'):('folga '+nf(lim-t.W,0)+' kg'))+'</b></div>'+
+      '<div><span>Margem de peso</span><b>'+(over?('EXCEDE '+nf(t.W-lim,0)+' kg'):('folga '+nf(lim-t.W,0)+' kg'))+'</b></div>'+
       '<div><span>PAX / POB</span><b>'+t.pax+' / '+t.pob+'</b></div>'+
     '</div>'+
+    '<div class="cgv '+vcls+'">CG '+t.verdict+(t.verdict==="DENTRO"||t.verdict==="FORA"?" DOS LIMITES":"")+'</div>'+
+    '<div class="crit">Critério: limite dianteiro 4,40 m→7.000 kg … 4,60 m→11.000 kg; limite traseiro 4,96 m (fórmula da ficha). Momento total: '+nf(t.M,0)+'.</div>'+
     '<h3>Manifesto de carga — auditoria da aeronave</h3>'+
     '<table><thead><tr><th>Item</th><th>Peso (kg)</th><th>Braço (m)</th><th>Momento</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<h3>Ciência da tripulação</h3>'+
     '<table><thead><tr><th>Função</th><th>Trigrama</th><th>Ciência</th><th>Assinatura</th></tr></thead><tbody>'+ackRows+'</tbody></table>'+
-    '<div class="sig"><span>Comandante da ANV</span><span>MecVoo</span><span>Local / Data</span></div>'+
+    '<div class="sig">'+
+      '<span>Piloto — Comandante da ANV<br>Trigrama: <b>'+((esc(cur().ack.cmt.tri)||'').trim()||'________')+'</b></span>'+
+      '<span>Mecânico — MecVoo<br>Trigrama: <b>'+((esc(cur().ack.mec.tri)||'').trim()||'________')+'</b></span>'+
+      '<span>Data<br><b>'+now.toLocaleString("pt-BR")+'</b></span>'+
+    '</div>'+
     '<div class="foot">Documento gerado pelo app Peso e CG — H225M (offline) em '+now.toLocaleString("pt-BR")+'. Conferir sempre com a ficha e a carta de envelope oficiais.</div>';
 }
 
