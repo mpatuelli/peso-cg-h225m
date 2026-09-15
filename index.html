@@ -103,6 +103,11 @@
   .crewrow label{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13.5px;font-weight:600}
   .crewrow input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
   .hint{color:var(--muted);font-size:12px;padding:2px 13px 10px}
+  .recapMini{padding:4px 13px}
+  .recapline{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .recapline:last-child{border-bottom:0}
+  .recapline span{color:var(--muted)}
+  .recapline b{font-variant-numeric:tabular-nums;font-size:14.5px}
   .subhead{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);background:var(--card2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 13px;margin-top:2px}
   @media (prefers-color-scheme:dark){.subhead{color:var(--gold)}}
 
@@ -222,9 +227,8 @@
   <div id="sections"></div>
 
   <div class="card" id="cardRecap">
-    <h2><span>Resultado — Peso básico · CREW · PAYLOAD · UPDATE · Combustível</span></h2>
-    <div class="rows" id="recapRows"></div>
-    <div class="hint">Mesma nomenclatura da ficha original: CREW = tripulação · PAYLOAD = acessórios + configuração de voo · UPDATE = banco de tropa + combustível de translado.</div>
+    <h2><span>Resultado — Peso básico · Crew · Payload · Fuel</span></h2>
+    <div class="recapMini" id="recapRows"></div>
   </div>
 
   <div class="card" id="cardChart">
@@ -275,7 +279,7 @@
 <script>
 "use strict";
 /* Versão do app — bump junto com o CACHE do sw.js a cada publicação. */
-var APP_VERSION="9", APP_VERSION_DATE="15/09/2026";
+var APP_VERSION="10", APP_VERSION_DATE="15/09/2026";
 
 /* ============ tipos de controle ============ */
 function SEL(id,label,arm,opts,def){return{id,label,arm,type:"select",opts,def:def||0}}
@@ -595,17 +599,17 @@ function groupTotals(g){
   return {W:W,M:Mo,pax:pax};
 }
 
-/* Recomposição nas categorias da ficha original: PESO BÁSICO / TRIPULAÇÃO (CREW) / PAYLOAD / UPDATE / COMBUSTÍVEL */
+/* Recomposição estilo ficha de carregamento: Peso básico / Crew / Payload / Fuel */
 function byName(name){ var g=cat().groups.filter(function(x){return x.name===name})[0]; return g?groupTotals(g):{W:0,M:0}; }
 function recapCategories(){
   var b=basic(), crew=byName("Tripulação"), acc=byName("Acessórios"), cfg=byName("Configuração de voo"),
       bt=byName("Banco de tropa"), tr=byName("Combustível de translado"), fuel=byName("Combustível");
+  var payloadW=acc.W+cfg.W+bt.W+tr.W, payloadM=acc.M+cfg.M+bt.M+tr.M;
   return [
     {label:"Peso básico",sub:"aeronave vazia (matrícula/manual)",W:b.w,M:b.m},
-    {label:"CREW",sub:"tripulação",W:crew.W,M:crew.M},
-    {label:"PAYLOAD",sub:"acessórios + configuração de voo",W:acc.W+cfg.W,M:acc.M+cfg.M},
-    {label:"UPDATE",sub:"banco de tropa + combustível de translado",W:bt.W+tr.W,M:bt.M+tr.M},
-    {label:"COMBUSTÍVEL",sub:"tanques normais + auxiliares",W:fuel.W,M:fuel.M}
+    {label:"Crew",sub:"tripulação",W:crew.W,M:crew.M},
+    {label:"Payload",sub:"acessórios + config. de voo + banco de tropa + translado",W:payloadW,M:payloadM},
+    {label:"Fuel",sub:"combustível — tanques normais + auxiliares",W:fuel.W,M:fuel.M}
   ];
 }
 
@@ -961,11 +965,8 @@ function buildRecap(t){
   if(!t)t=totals();
   var html="";
   recapCategories().forEach(function(c){
-    html+='<div class="row"><div class="lbl">'+c.label+'<span class="arm noarm">'+c.sub+'</span></div></div>';
-    html+='<div class="row"><div class="res"><b>'+kg(c.W)+'</b> · mom '+nf(c.M,0)+'</div></div>';
+    html+='<div class="recapline"><span>'+c.label+'</span><b>'+kg(c.W)+'</b></div>';
   });
-  html+='<div class="row" style="background:var(--card2)"><div class="lbl" style="font-weight:800">PESO TOTAL DEP</div></div>';
-  html+='<div class="row" style="background:var(--card2)"><div class="res"><b>'+kg(t.W)+'</b> · mom '+nf(t.M,0)+' · CG '+nf(t.cg,3)+' m · <b class="'+(t.verdict==="DENTRO"?"okv":(t.verdict==="FORA"?"badv":""))+'">'+t.verdict+'</b></div></div>';
   host.innerHTML=html;
 }
 
@@ -1047,7 +1048,7 @@ function buildPrint(t,b){
     '</div>'+
     '<div class="cgv '+vcls+'">CG '+t.verdict+(t.verdict==="DENTRO"||t.verdict==="FORA"?" DOS LIMITES":"")+'</div>'+
     '<div class="crit">Critério: limite dianteiro 4,40 m→7.000 kg … 4,60 m→11.000 kg; limite traseiro 4,96 m (fórmula da ficha). Momento total: '+nf(t.M,0)+'.</div>'+
-    '<h3>Resumo por categoria (nomenclatura da ficha original)</h3>'+
+    '<h3>Resumo por categoria — Peso básico / Crew / Payload / Fuel</h3>'+
     '<table><thead><tr><th>Categoria</th><th>Peso (kg)</th><th></th><th>Momento</th></tr></thead><tbody>'+
       recapCategories().map(function(rc){return '<tr><td>'+rc.label+' <span class="muted">('+rc.sub+')</span></td><td>'+nf(rc.W,1)+'</td><td></td><td>'+nf(rc.M,1)+'</td></tr>';}).join('')+
       '<tr class="tot"><td>PESO TOTAL DEP</td><td>'+nf(t.W,1)+'</td><td>'+nf(t.cg,3)+'</td><td>'+nf(t.M,1)+'</td></tr>'+
@@ -1110,7 +1111,7 @@ el("btnClearAll").addEventListener("click",function(){
 /* install tip + service worker + versão do app (controle de atualização) */
 (function(){
   el("verTag").textContent="· v"+APP_VERSION;
-  el("verLine").innerHTML="<b>Versão do app: v"+APP_VERSION+"</b> ("+APP_VERSION_DATE+"). Sempre que houver uma atualização, abra este link com internet uma vez para baixar a versão nova — quem ainda não instalou deve salvar na Tela de Início depois disso; quem já instalou só precisa abrir on-line 1x (a atualização é baixada sozinha, sem precisar salvar de novo).";
+  el("verLine").innerHTML="<b>Versão do app: v"+APP_VERSION+"</b> ("+APP_VERSION_DATE+"). Sempre que houver uma atualização, abra o link do app com acesso à internet, atualize a página (F5) e depois salve a nova versão na Tela de Início.";
   var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
   var dismissKey = "pesoCG_installTip_v"+APP_VERSION;
   var dismissed = false; try{dismissed=localStorage.getItem(dismissKey)==="1"}catch(e){}
