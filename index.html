@@ -103,6 +103,8 @@
   .crewrow label{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13.5px;font-weight:600}
   .crewrow input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
   .hint{color:var(--muted);font-size:12px;padding:2px 13px 10px}
+  .secnote{font-size:12px;color:var(--muted);padding:9px 13px;border-top:1px dashed var(--line);line-height:1.55;background:var(--card2)}
+  .secnote b{color:var(--txt)}
   .recapMini{padding:4px 13px}
   .recapline{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .recapline:last-child{border-bottom:0}
@@ -283,7 +285,7 @@
 <script>
 "use strict";
 /* Versão do app — bump junto com o CACHE do sw.js a cada publicação. */
-var APP_VERSION="12", APP_VERSION_DATE="15/09/2026";
+var APP_VERSION="13", APP_VERSION_DATE="15/09/2026";
 
 /* ============ tipos de controle ============ */
 function SEL(id,label,arm,opts,def){return{id,label,arm,type:"select",opts,def:def||0}}
@@ -300,6 +302,7 @@ var CREW_SEL=[{l:"— fora",kg:0},{l:"85 · básico",kg:85},{l:"95 · colete+bal
 var CREW_CATS=[{l:"85 · básico",kg:85},{l:"95 · colete+balsa",kg:95}];
 var PAX_CATS=[{l:"85 · básico",kg:85},{l:"95 · com colete",kg:95},{l:"120 · armado e equipado",kg:120}];
 var BANCO_HINT="0–2 por seção · 85 / 95 / 120 kg";
+var CREW_NOTE="Lembre-se de conferir o Crew na página PERFO do VMS.<br>Apenas um fiel é contabilizado no Crew. Se tiver mais de um fiel, os demais serão contabilizados no Update.";
 
 function acessoriosExtra(){return[
   T("a_escvip","Escada VIP",0,9),
@@ -379,7 +382,7 @@ var CATALOGS={
       {id:"7202",w:6831,m:32081.70},{id:"7203",w:6817.2,m:31027.52}
     ],
     groups:[
-      {name:"Tripulação",items:[
+      {name:"Tripulação",note:CREW_NOTE,items:[
         SEL("t_1p","1P",1.28,CREW_SEL,1),
         SEL("t_2p","2P",1.28,CREW_SEL,1),
         SEL("t_mec","Mecânico de voo",1.924,CREW_SEL,0),
@@ -428,7 +431,7 @@ var CATALOGS={
       {id:"4103",w:7004,m:33262.65},{id:"4104",w:7034.7,m:33487.77}
     ],
     groups:[
-      {name:"Tripulação",items:[
+      {name:"Tripulação",note:CREW_NOTE,items:[
         SEL("t_1p","1P",1.28,CREW_SEL,1),
         SEL("t_2p","2P",1.28,CREW_SEL,1),
         SEL("t_mec","Mecânico de voo",2.105,CREW_SEL,0),
@@ -605,16 +608,27 @@ function groupTotals(g){
 
 /* Recomposição nas categorias da ficha original, com os nomes atuais:
    Peso básico / Crew (=Tripulação) / Payload (=Acessórios+Config. de voo) /
-   Update (=Banco de tropa+Combustível de translado) / Fuel (=Combustível) */
+   Update (=Banco de tropa+Combustível de translado) / Fuel (=Combustível).
+   Só o 1º Fiel entra no Crew (como no VMS) — a partir do 2º, o peso/momento
+   do(s) fiel(is) extra(s) é contabilizado no Update. */
 function byName(name){ var g=cat().groups.filter(function(x){return x.name===name})[0]; return g?groupTotals(g):{W:0,M:0}; }
+function fielExtra(){
+  var g=cat().groups.filter(function(x){return x.name==="Tripulação"})[0];
+  var it=g?g.items.filter(function(x){return x.id==="t_fiel"})[0]:null;
+  var v=cur().values.t_fiel;
+  if(!it||!v||!(v.n>1)) return {W:0,M:0,n:0};
+  var extraN=v.n-1, perKg=it.cats[v.c||0].kg, w=extraN*perKg;
+  return {W:w,M:w*it.arm,n:extraN};
+}
 function recapCategories(){
   var b=basic(), crew=byName("Tripulação"), acc=byName("Acessórios"), cfg=byName("Configuração de voo"),
-      bt=byName("Banco de tropa"), tr=byName("Combustível de translado"), fuel=byName("Combustível");
+      bt=byName("Banco de tropa"), tr=byName("Combustível de translado"), fuel=byName("Combustível"),
+      fx=fielExtra();
   return [
     {label:"Peso básico",sub:"aeronave vazia (matrícula/manual)",W:b.w,M:b.m},
-    {label:"Crew",sub:"tripulação",W:crew.W,M:crew.M},
+    {label:"Crew",sub:"tripulação",W:crew.W-fx.W,M:crew.M-fx.M},
     {label:"Payload",sub:"acessórios + configuração de voo",W:acc.W+cfg.W,M:acc.M+cfg.M},
-    {label:"Update",sub:"banco de tropa + combustível de translado",W:bt.W+tr.W,M:bt.M+tr.M},
+    {label:"Update",sub:"banco de tropa + combustível de translado"+(fx.n?(" + "+fx.n+" fiel(is) extra"):""),W:bt.W+tr.W+fx.W,M:bt.M+tr.M+fx.M},
     {label:"Fuel",sub:"combustível — tanques normais + auxiliares",W:fuel.W,M:fuel.M}
   ];
 }
@@ -681,6 +695,7 @@ function buildSections(){
     var rows=document.createElement("div");rows.className="rows";
     g.items.forEach(function(it){rows.appendChild(buildRow(it))});
     if(g.extra) rows.appendChild(buildExtraBlock());
+    if(g.note){ var nd=document.createElement("div"); nd.className="secnote"; nd.innerHTML=g.note; rows.appendChild(nd); }
     card.appendChild(rows);host.appendChild(card);
   });
   renderMatExtra();renderAddItens();
