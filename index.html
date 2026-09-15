@@ -123,6 +123,8 @@
   .kpi .sit.out{color:#ff8a7d}
   .kpi .sit.in::before{content:"● "}
   .kpi .sit.out::before{content:"▲ "}
+  .okv{color:var(--ok, #1c7a49)}
+  .badv{color:var(--bad, #c02a1c)}
   .kpi.cg .v{color:var(--gold)}
   .kpi.over .v{color:#ffb0a6}
   .sumbar .foot{max-width:860px;margin:0 auto;padding:1px 13px 9px;display:flex;gap:5px 12px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:rgba(255,255,255,.78)}
@@ -133,6 +135,7 @@
 
   .install{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:10px;padding:10px 12px;margin:12px 0;font-size:12.5px;color:var(--muted);display:flex;gap:10px;align-items:flex-start}
   .install b{color:var(--txt)}
+  .install .ver{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);color:var(--muted)}
   .install button{margin-left:auto;flex:none;background:none;border:0;color:var(--accent);font-weight:800;cursor:pointer;font-size:16px;line-height:1}
 
   #printView{display:none}
@@ -175,7 +178,7 @@
   <div class="in">
     <div>
       <h1>H225M <span>UH-15 / AH-15B</span></h1>
-      <div class="tag">Peso e Balanceamento</div>
+      <div class="tag">Peso e Balanceamento <span id="verTag" style="opacity:.7"></span></div>
     </div>
   </div>
 </div>
@@ -188,7 +191,10 @@
   </div>
 
   <div class="install" id="installTip" hidden>
-    <div><b>Usar offline no EFB / celular:</b> abra este link uma vez com internet, toque em <b>Compartilhar → Adicionar à Tela de Início</b>. Depois funciona sem rede.</div>
+    <div>
+      <b>Usar offline no EFB / celular:</b> abra este link uma vez com internet, toque em <b>Compartilhar → Adicionar à Tela de Início</b>. Depois funciona sem rede.
+      <div class="ver" id="verLine"></div>
+    </div>
     <button id="installClose" aria-label="fechar">×</button>
   </div>
 
@@ -214,6 +220,12 @@
   </div>
 
   <div id="sections"></div>
+
+  <div class="card" id="cardRecap">
+    <h2><span>Resultado — Peso básico · CREW · PAYLOAD · UPDATE · Combustível</span></h2>
+    <div class="rows" id="recapRows"></div>
+    <div class="hint">Mesma nomenclatura da ficha original: CREW = tripulação · PAYLOAD = acessórios + configuração de voo · UPDATE = banco de tropa + combustível de translado.</div>
+  </div>
 
   <div class="card" id="cardChart">
     <h2><span>Envelope de CG — referência</span><span class="st" id="chartSt">—</span></h2>
@@ -262,6 +274,8 @@
 
 <script>
 "use strict";
+/* Versão do app — bump junto com o CACHE do sw.js a cada publicação. */
+var APP_VERSION="9", APP_VERSION_DATE="15/09/2026";
 
 /* ============ tipos de controle ============ */
 function SEL(id,label,arm,opts,def){return{id,label,arm,type:"select",opts,def:def||0}}
@@ -579,6 +593,20 @@ function groupTotals(g){
   g.items.forEach(function(it){var w=itemWeight(it,c.values[it.id]);W+=w;Mo+=w*it.arm;pax+=(g.name==="Banco de tropa"?personCount(it,c.values[it.id]):0)});
   if(g.extra){ W+=extraWeight(); Mo+=addItensMoment(); }
   return {W:W,M:Mo,pax:pax};
+}
+
+/* Recomposição nas categorias da ficha original: PESO BÁSICO / TRIPULAÇÃO (CREW) / PAYLOAD / UPDATE / COMBUSTÍVEL */
+function byName(name){ var g=cat().groups.filter(function(x){return x.name===name})[0]; return g?groupTotals(g):{W:0,M:0}; }
+function recapCategories(){
+  var b=basic(), crew=byName("Tripulação"), acc=byName("Acessórios"), cfg=byName("Configuração de voo"),
+      bt=byName("Banco de tropa"), tr=byName("Combustível de translado"), fuel=byName("Combustível");
+  return [
+    {label:"Peso básico",sub:"aeronave vazia (matrícula/manual)",W:b.w,M:b.m},
+    {label:"CREW",sub:"tripulação",W:crew.W,M:crew.M},
+    {label:"PAYLOAD",sub:"acessórios + configuração de voo",W:acc.W+cfg.W,M:acc.M+cfg.M},
+    {label:"UPDATE",sub:"banco de tropa + combustível de translado",W:bt.W+tr.W,M:bt.M+tr.M},
+    {label:"COMBUSTÍVEL",sub:"tanques normais + auxiliares",W:fuel.W,M:fuel.M}
+  ];
 }
 
 /* ============ gráfico ============ */
@@ -923,8 +951,22 @@ function recompute(){
   el("chartBox").innerHTML=chartSVG(t.cg,t.W,t.verdict);
   el("chartSt").textContent=t.W?(nf(t.cg,3)+" m · "+t.verdict):"—";
 
+  buildRecap(t);
   buildPrint(t,b);
   save();
+}
+
+function buildRecap(t){
+  var host=el("recapRows"); if(!host)return;
+  if(!t)t=totals();
+  var html="";
+  recapCategories().forEach(function(c){
+    html+='<div class="row"><div class="lbl">'+c.label+'<span class="arm noarm">'+c.sub+'</span></div></div>';
+    html+='<div class="row"><div class="res"><b>'+kg(c.W)+'</b> · mom '+nf(c.M,0)+'</div></div>';
+  });
+  html+='<div class="row" style="background:var(--card2)"><div class="lbl" style="font-weight:800">PESO TOTAL DEP</div></div>';
+  html+='<div class="row" style="background:var(--card2)"><div class="res"><b>'+kg(t.W)+'</b> · mom '+nf(t.M,0)+' · CG '+nf(t.cg,3)+' m · <b class="'+(t.verdict==="DENTRO"?"okv":(t.verdict==="FORA"?"badv":""))+'">'+t.verdict+'</b></div></div>';
+  host.innerHTML=html;
 }
 
 function buildPrint(t,b){
@@ -1005,6 +1047,11 @@ function buildPrint(t,b){
     '</div>'+
     '<div class="cgv '+vcls+'">CG '+t.verdict+(t.verdict==="DENTRO"||t.verdict==="FORA"?" DOS LIMITES":"")+'</div>'+
     '<div class="crit">Critério: limite dianteiro 4,40 m→7.000 kg … 4,60 m→11.000 kg; limite traseiro 4,96 m (fórmula da ficha). Momento total: '+nf(t.M,0)+'.</div>'+
+    '<h3>Resumo por categoria (nomenclatura da ficha original)</h3>'+
+    '<table><thead><tr><th>Categoria</th><th>Peso (kg)</th><th></th><th>Momento</th></tr></thead><tbody>'+
+      recapCategories().map(function(rc){return '<tr><td>'+rc.label+' <span class="muted">('+rc.sub+')</span></td><td>'+nf(rc.W,1)+'</td><td></td><td>'+nf(rc.M,1)+'</td></tr>';}).join('')+
+      '<tr class="tot"><td>PESO TOTAL DEP</td><td>'+nf(t.W,1)+'</td><td>'+nf(t.cg,3)+'</td><td>'+nf(t.M,1)+'</td></tr>'+
+    '</tbody></table>'+
     '<h3>Manifesto de carga — auditoria da aeronave</h3>'+
     '<table><thead><tr><th>Item</th><th>Peso (kg)</th><th>Braço (m)</th><th>Momento</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<h3>Ciência da tripulação</h3>'+
@@ -1014,7 +1061,7 @@ function buildPrint(t,b){
       '<span>Mecânico — MecVoo<br>Trigrama: <b>'+((esc(cur().ack.mec.tri)||'').trim()||'________')+'</b></span>'+
       '<span>Data<br><b>'+now.toLocaleString("pt-BR")+'</b></span>'+
     '</div>'+
-    '<div class="foot">Documento gerado pelo app Peso e CG — H225M (offline) em '+now.toLocaleString("pt-BR")+'. Conferir sempre com a ficha e a carta de envelope oficiais.</div>';
+    '<div class="foot">Documento gerado pelo app Peso e CG — H225M v'+APP_VERSION+' (offline) em '+now.toLocaleString("pt-BR")+'. Conferir sempre com a ficha e a carta de envelope oficiais.</div>';
 }
 
 /* ============ eventos ============ */
@@ -1060,13 +1107,16 @@ el("btnClearAll").addEventListener("click",function(){
   localStorage.removeItem(LS);state=load();fullRender();
 });
 
-/* install tip + service worker */
+/* install tip + service worker + versão do app (controle de atualização) */
 (function(){
+  el("verTag").textContent="· v"+APP_VERSION;
+  el("verLine").innerHTML="<b>Versão do app: v"+APP_VERSION+"</b> ("+APP_VERSION_DATE+"). Sempre que houver uma atualização, abra este link com internet uma vez para baixar a versão nova — quem ainda não instalou deve salvar na Tela de Início depois disso; quem já instalou só precisa abrir on-line 1x (a atualização é baixada sozinha, sem precisar salvar de novo).";
   var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-  var dismissed = false; try{dismissed=localStorage.getItem("pesoCG_installTip")==="1"}catch(e){}
+  var dismissKey = "pesoCG_installTip_v"+APP_VERSION;
+  var dismissed = false; try{dismissed=localStorage.getItem(dismissKey)==="1"}catch(e){}
   if(!standalone && !dismissed && location.protocol.indexOf("http")===0){ el("installTip").hidden=false; }
   el("installClose").addEventListener("click",function(){
-    el("installTip").hidden=true; try{localStorage.setItem("pesoCG_installTip","1")}catch(e){}
+    el("installTip").hidden=true; try{localStorage.setItem(dismissKey,"1")}catch(e){}
   });
   if("serviceWorker" in navigator && location.protocol.indexOf("http")===0){
     navigator.serviceWorker.register("sw.js").catch(function(){});
