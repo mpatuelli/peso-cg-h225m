@@ -227,7 +227,7 @@
   <div id="sections"></div>
 
   <div class="card" id="cardRecap">
-    <h2><span>Resultado — Peso básico · Crew · Payload · Fuel</span></h2>
+    <h2><span>Resultado</span></h2>
     <div class="recapMini" id="recapRows"></div>
   </div>
 
@@ -279,7 +279,7 @@
 <script>
 "use strict";
 /* Versão do app — bump junto com o CACHE do sw.js a cada publicação. */
-var APP_VERSION="10", APP_VERSION_DATE="15/09/2026";
+var APP_VERSION="11", APP_VERSION_DATE="15/09/2026";
 
 /* ============ tipos de controle ============ */
 function SEL(id,label,arm,opts,def){return{id,label,arm,type:"select",opts,def:def||0}}
@@ -599,16 +599,18 @@ function groupTotals(g){
   return {W:W,M:Mo,pax:pax};
 }
 
-/* Recomposição estilo ficha de carregamento: Peso básico / Crew / Payload / Fuel */
+/* Recomposição nas categorias da ficha original, com os nomes atuais:
+   Peso básico / Crew (=Tripulação) / Payload (=Acessórios+Config. de voo) /
+   Update (=Banco de tropa+Combustível de translado) / Fuel (=Combustível) */
 function byName(name){ var g=cat().groups.filter(function(x){return x.name===name})[0]; return g?groupTotals(g):{W:0,M:0}; }
 function recapCategories(){
   var b=basic(), crew=byName("Tripulação"), acc=byName("Acessórios"), cfg=byName("Configuração de voo"),
       bt=byName("Banco de tropa"), tr=byName("Combustível de translado"), fuel=byName("Combustível");
-  var payloadW=acc.W+cfg.W+bt.W+tr.W, payloadM=acc.M+cfg.M+bt.M+tr.M;
   return [
     {label:"Peso básico",sub:"aeronave vazia (matrícula/manual)",W:b.w,M:b.m},
     {label:"Crew",sub:"tripulação",W:crew.W,M:crew.M},
-    {label:"Payload",sub:"acessórios + config. de voo + banco de tropa + translado",W:payloadW,M:payloadM},
+    {label:"Payload",sub:"acessórios + configuração de voo",W:acc.W+cfg.W,M:acc.M+cfg.M},
+    {label:"Update",sub:"banco de tropa + combustível de translado",W:bt.W+tr.W,M:bt.M+tr.M},
     {label:"Fuel",sub:"combustível — tanques normais + auxiliares",W:fuel.W,M:fuel.M}
   ];
 }
@@ -1048,7 +1050,7 @@ function buildPrint(t,b){
     '</div>'+
     '<div class="cgv '+vcls+'">CG '+t.verdict+(t.verdict==="DENTRO"||t.verdict==="FORA"?" DOS LIMITES":"")+'</div>'+
     '<div class="crit">Critério: limite dianteiro 4,40 m→7.000 kg … 4,60 m→11.000 kg; limite traseiro 4,96 m (fórmula da ficha). Momento total: '+nf(t.M,0)+'.</div>'+
-    '<h3>Resumo por categoria — Peso básico / Crew / Payload / Fuel</h3>'+
+    '<h3>Resumo por categoria — Peso básico / Crew / Payload / Update / Fuel</h3>'+
     '<table><thead><tr><th>Categoria</th><th>Peso (kg)</th><th></th><th>Momento</th></tr></thead><tbody>'+
       recapCategories().map(function(rc){return '<tr><td>'+rc.label+' <span class="muted">('+rc.sub+')</span></td><td>'+nf(rc.W,1)+'</td><td></td><td>'+nf(rc.M,1)+'</td></tr>';}).join('')+
       '<tr class="tot"><td>PESO TOTAL DEP</td><td>'+nf(t.W,1)+'</td><td>'+nf(t.cg,3)+'</td><td>'+nf(t.M,1)+'</td></tr>'+
